@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Entry Portal</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --text: #e2e8f0; --muted: #94a3b8;
+    --accent: #38bdf8; --accent2: #6366f1; --ok: #22c55e; --err: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: radial-gradient(circle at 20% 10%, #1e293b, var(--bg) 60%);
+    color: var(--text); display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .card {
+    width: 100%; max-width: 520px; background: rgba(30,41,59,.92); border: 1px solid #334155;
+    border-radius: 16px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  h1 { margin: 0 0 4px; font-size: 1.4rem; }
+  p.sub { margin: 0 0 22px; color: var(--muted); font-size: .9rem; }
+  label { display: block; font-size: .82rem; color: var(--muted); margin: 14px 0 6px; }
+  input, select, textarea {
+    width: 100%; padding: 11px 12px; border-radius: 9px; border: 1px solid #334155;
+    background: #0f172a; color: var(--text); font-size: .95rem; outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+  button {
+    margin-top: 20px; width: 100%; padding: 12px; border: none; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; font-weight: 600; font-size: .95rem; cursor: pointer;
+  }
+  button:hover { opacity: .92; }
+  .link-row { display: flex; gap: 8px; margin-top: 10px; }
+  .link-row input { flex: 1; }
+  .link-row button { width: auto; margin: 0; padding: 0 16px; white-space: nowrap; }
+  .msg { margin-top: 14px; font-size: .85rem; padding: 10px 12px; border-radius: 8px; display: none; }
+  .msg.ok { display: block; background: rgba(34,197,94,.15); color: var(--ok); border: 1px solid rgba(34,197,94,.3); }
+  .msg.err { display: block; background: rgba(239,68,68,.15); color: var(--err); border: 1px solid rgba(239,68,68,.3); }
+  .small { font-size: .78rem; color: var(--muted); margin-top: 16px; text-align: center; }
+  ul.entries { list-style: none; padding: 0; margin: 10px 0 0; }
+  ul.entries li { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: .88rem; }
+  .divider { height: 1px; background: #334155; margin: 22px 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Entry Portal</h1>
+  <p class="sub">No login needed — just add your entries and share the link.</p>
+
+  <!-- ENTRY FORM -->
+  <form id="entryForm" autocomplete="off">
+    <label for="entryName">Your name</label>
+    <input id="entryName" placeholder="Who is submitting?" required />
+
+    <label for="entryTitle">Entry title</label>
+    <input id="entryTitle" placeholder="e.g. Project A" required />
+
+    <label for="entryCategory">Category</label>
+    <select id="entryCategory">
+      <option>General</option>
+      <option>Work</option>
+      <option>Personal</option>
+      <option>Other</option>
+    </select>
+
+    <label for="entryNotes">Notes</label>
+    <textarea id="entryNotes" placeholder="Optional notes..."></textarea>
+
+    <button type="submit">Add Entry</button>
+  </form>
+
+  <div id="appMsg" class="msg"></div>
+
+  <div class="divider"></div>
+
+  <!-- SHAREABLE JOIN LINK -->
+  <label for="shareLink">Shareable join link</label>
+  <div class="link-row">
+    <input id="shareLink" readonly />
+    <button type="button" id="copyLink">Copy</button>
+  </div>
+  <p class="small">Send this link to others so they can open the same page and add entries.</p>
+
+  <!-- ENTRIES LIST -->
+  <ul class="entries" id="entriesList"></ul>
+</div>
+
+<script>
+/* ---------- Storage helpers (localStorage) ---------- */
+const DB = {
+  entries: () => JSON.parse(localStorage.getItem('ep_entries') || '[]'),
+  saveEntries: (e) => localStorage.setItem('ep_entries', JSON.stringify(e)),
+  room: () => localStorage.getItem('ep_room') || 'default'
+};
+
+/* ---------- UI refs ---------- */
+const $ = (id) => document.getElementById(id);
+const appMsg = $('appMsg');
+
+function showMsg(text, type='ok') { appMsg.textContent = text; appMsg.className = 'msg ' + type; }
+
+/* ---------- Shareable link ---------- */
+function generateShareLink() {
+  const url = new URL(window.location.href);
+  url.searchParams.set('room', DB.room());
+  $('shareLink').value = url.toString();
+}
+generateShareLink();
+
+$('copyLink').addEventListener('click', () => {
+  navigator.clipboard.writeText($('shareLink').value).then(() => showMsg('Link copied!', 'ok'));
+});
+
+/* ---------- Render entries ---------- */
+function renderEntries() {
+  const list = $('entriesList');
+  const entries = DB.entries();
+  list.innerHTML = entries.length
+    ? ''
+    : '<li style="color:var(--muted)">No entries yet. Add one above.</li>';
+  entries.forEach(e => {
+    const li = document.createElement('li');
+    li.textContent = `${e.name} — ${e.title} (${e.category})${e.notes ? ' · ' + e.notes : ''}`;
+    list.appendChild(li);
+  });
+}
+
+/* ---------- Add entry ---------- */
+$('entryForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('entryName').value.trim();
+  const title = $('entryTitle').value.trim();
+  if (!name || !title) return;
+  const entries = DB.entries();
+  entries.push({
+    name,
+    title,
+    category: $('entryCategory').value,
+    notes: $('entryNotes').value.trim(),
+    at: new Date().toISOString()
+  });
+  DB.saveEntries(entries);
+  $('entryForm').reset();
+  showMsg('Entry added!', 'ok');
+  renderEntries();
+});
+
+/* ---------- Init ---------- */
+renderEntries();
+</script>
+</body>
+</html>
